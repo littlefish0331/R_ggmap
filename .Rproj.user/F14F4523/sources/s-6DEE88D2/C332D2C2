@@ -1,0 +1,25 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1590117067052.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "0",
+    "id" : "C332D2C2",
+    "lastKnownWriteTime" : 1589327484,
+    "last_content_update" : 1589327484,
+    "path" : "E:/NCHC/00_skill_tips/R_ggmap/code/01_learn_ggmap.Rmd",
+    "project_path" : "code/01_learn_ggmap.Rmd",
+    "properties" : {
+        "cursorPosition" : "36,3",
+        "scrollLine" : "16"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_markdown"
+}
