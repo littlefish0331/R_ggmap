@@ -1,0 +1,140 @@
+---
+title: "00_learn_heatmap_with_map"
+author: "Author: [Steve, Yu](https://github.com/littlefish0331)"
+date: "`r Sys.setlocale('LC_TIME', 'English'); format(Sys.time(), '%Y %b %d %a, %H:%M:%S')`" 
+output:
+  rmdformats::readthedown:
+    css: style.css
+    self_contained: TRUE
+    thumbnails: FALSE
+    lightbox: TRUE
+    gallery: FALSE
+    highlight: tango #探戈橘
+    code_folding: show
+    toc_depth: 3
+    
+---
+
+```{r setup, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+rm(list = ls()); gc()
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(data.table)
+library(ggmap)
+library(ggplot2)
+library(tidyr)
+knitr::opts_chunk$set(
+	# 這邊是針對所有chunk的設定
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+# reference
+
+[Building Heatmaps in R with ggplot2 package | DataScience+](https://datascienceplus.com/building-heatmaps-in-r/)
+
+# read data
+
+```{r}
+# Reading in the data
+chicagoMVT <- read.csv('../data_learn/motor_vehicle_theft.csv', stringsAsFactors = FALSE)
+
+# Converting the date to a recognizable format
+# 因為電腦語系是中文的關係，所以看不懂AM/PM，要先轉換成上午/下午。
+chicagoMVT$Date <- chicagoMVT$Date %>% gsub("PM", "下午", .) %>% gsub("AM", "上午", .)
+chicagoMVT$Date <- strptime(chicagoMVT$Date, format = '%m/%d/%Y %I:%M:%S %p')
+
+# Getting the day and hour of each crime
+chicagoMVT$Day <- weekdays(chicagoMVT$Date)
+chicagoMVT$Hour <- chicagoMVT$Date$hour
+chicagoMVT$Day <- chicagoMVT$Day %>% 
+  gsub("星期", "", .) %>% 
+  gsub("一", "Monday", .) %>% gsub("二", "Tuesday", .) %>% 
+  gsub("三", "Wednesday", .) %>% gsub("四", "Thursday", .) %>% 
+  gsub("五", "Friday", .) %>% gsub("六", "Saturday", .) %>% gsub("日", "Sunday", .)
+
+# Sorting the weekdays
+dailyCrimes <- as.data.frame(table(chicagoMVT$Day, chicagoMVT$Hour))
+names(dailyCrimes) <- c('Day', 'Hour', 'Freq')
+dailyCrimes$Hour <- as.numeric(as.character(dailyCrimes$Hour))
+dailyCrimes$Day <- factor(dailyCrimes$Day, ordered = TRUE, 
+                         levels = c('Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'))
+
+# Plotting the number of crimes each day (line graph)
+ggplot(data = dailyCrimes, aes(x = Hour, y = Freq)) + 
+  geom_line(aes(group = Day, color = Day)) + 
+  xlab('Hour') + 
+  ylab('Number of thefts') + 
+  ggtitle('Daily number of Motor Vehicle Thefts')
+
+# ---
+# 分析解讀
+# - 先不看顏色，即不管周幾，偷竊好發於晚上20~24，早上也有一個小高峰。
+```
+
+```{r}
+ggplot(dailyCrimes, aes(x = Hour, y = Day)) + 
+  geom_tile(aes(fill = Freq)) + 
+  scale_fill_gradient(name = 'Total Motor Vehicle Thefts', low = 'white', high = 'red') +
+  theme(axis.title.y = element_blank()) #把y座標欄位Day，給移除掉。
+```
+
+---
+
+```{r}
+## Removing empty locations
+chicagoMVT$Location[chicagoMVT$Location == ''] <- NA
+chicagoMVT <- na.omit(chicagoMVT)
+```
+
+```{r}
+## Splitting location into latitude and longitude
+chicagoMVT <- chicagoMVT %>% 
+  extract(data = ., col = Location, into = c('Latitude', 'Longitude'), 
+          regex = '\\(([^,]+), ([^)]+)\\)')
+chicagoMVT$Longitude <- round(as.numeric(chicagoMVT$Longitude), 2)
+chicagoMVT$Latitude <- round(as.numeric(chicagoMVT$Latitude), 2)
+```
+
+```{r}
+maps_static_api_key <- 
+  read.table("E:/API_key/google_api_key.txt", header = T, stringsAsFactors = F) %>%
+  setDT() %>% .[API_name=="maps_static", API_key]
+register_google(key = maps_static_api_key)
+# google_key()
+# has_google_key()
+```
+
+```{r}
+chicago <- get_map(location = 'chicago', zoom = 11, maptype = "roadmap")
+ggmap(ggmap = chicago)
+```
+
+```{r}
+locationCrimes <- table(chicagoMVT$Longitude, chicagoMVT$Latitude) %>% 
+  as.data.frame()
+names(locationCrimes) <- c('long', 'lat', 'Freq')
+locationCrimes$long <- as.numeric(as.character(locationCrimes$long))
+locationCrimes$lat <- as.numeric(as.character(locationCrimes$lat))
+locationCrimes <- subset(locationCrimes, Freq > 0)
+```
+
+```{r}
+ggmap(chicago) + 
+  geom_tile(data = locationCrimes, 
+            aes(x = long, y = lat, alpha = Freq),
+            fill = 'red') + 
+  theme(axis.title.y = element_blank(), axis.title.x = element_blank())
+```
+
+
+
+---
+
+# END
+
+
+

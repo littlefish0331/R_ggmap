@@ -1,0 +1,227 @@
+---
+title: "00_learn_ggmap"
+author: "Author: [Steve, Yu](https://github.com/littlefish0331)"
+date: "`r Sys.setlocale('LC_TIME', 'English'); format(Sys.time(), '%Y %b %d %a, %H:%M:%S')`" 
+output:
+  rmdformats::readthedown:
+    css: style.css
+    self_contained: TRUE
+    thumbnails: FALSE
+    lightbox: TRUE
+    gallery: FALSE
+    highlight: tango #探戈橘
+    code_folding: show
+    toc_depth: 3
+    
+---
+
+```{r setup, echo=TRUE, message=FALSE, warning=FALSE, results='hide'}
+rm(list = ls()); gc()
+library(knitr)
+library(kableExtra)
+library(dplyr)
+library(data.table)
+library(tidyverse)
+library(osmdata)
+library(sf)
+library(ggmap)
+knitr::opts_chunk$set(
+	# 這邊是針對所有chunk的設定
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+
+# reference
+
+[Accessing OpenStreetMap data with R | Dominic Royé](https://dominicroye.github.io/en/2018/accessing-openstreetmap-data-with-r/)
+
+---
+
+# Build a query
+
+Before creating a query, we need to know what we can filter.   
+The available_features() function returns a list of available OSM features that have different tags.   
+More details are available in the OSM wiki [here](https://wiki.openstreetmap.org/wiki/Map_Features).     
+For example, the feature shop contains several tags among others supermarket, fishing, books, etc.
+
+```{r}
+available_features() %>% head(10)
+```
+
+```{r}
+# amenities: 便利設施
+available_tags("amenity") %>% head(10)
+```
+
+```{r}
+# shops
+available_tags("shop") %>% head(10)
+```
+
+## The first query: Where are cinemas in Madrid? (馬德里)
+
+In the first part of the query we need to indicate the place where we want to extract the information.  
+在查詢的第一部分中，我們需要指出我們要提取信息的位置。
+
+The getbb() function creates a boundering box for a given place, looking for the name.  
+The main function is opq() which build the final query.  
+We add our filter criteria with the add_osm_feature() function.
+getbb()函數為給定位置創建一個邊界框，以查找名稱。  
+主要功能是opq()，它構建最終查詢。  
+我們使用add_osm_feature()函數添加過濾條件。
+
+In this first query we will look for cinemas in Madrid.  
+That’s why we use as key amenity and cinema as tag.  
+There are several formats to obtain the resulting spatial data of the query.  
+在第一個查詢中，我們將尋找馬德里的電影院。  
+這就是為什麼我們將其用作主要便利設施並將電影院用作標籤的原因。  
+有幾種格式可以獲取查詢的結果空間數據。
+
+```{r}
+# building the query
+q <- getbb("Madrid") %>%
+  opq() %>%
+  add_osm_feature("amenity", "cinema")
+
+str(q) #query structure
+```
+
+The osmdata_*() function sends the query to the server and, depending on the suffix * sf/sp/xml,  
+returns a simple feature, spatial or XML format.
+
+- suffix: 後綴
+
+```{r}
+cinema <- osmdata_sf(q)
+cinema
+## Object of class 'osmdata' with:
+##                  $bbox : 40.3119774,-3.8889539,40.6437293,-3.5179163
+##         $overpass_call : The call submitted to the overpass API
+##                  $meta : metadata including timestamp and version numbers
+##            $osm_points : 'sf' Simple Features Collection with 195 points
+##             $osm_lines : NULL
+##          $osm_polygons : 'sf' Simple Features Collection with 11 polygons
+##        $osm_multilines : NULL
+##     $osm_multipolygons : NULL
+```
+
+We see that the result is a list of different spatial objects. In our case, we are only interested in osm_points.  
+我們看到結果是不同空間對象的列表。 在我們的情況下，我們僅對osm_points感興趣。
+
+
+### How can we visulise these points?
+
+The advantage of sf objects is that for ggplot2 already exists a geometry function geom_sf( ).  
+Furthermore, we can include a background map using ggmap.  
+sf對象的優點在於，對於ggplot2，已經存在一個幾何函數geom_sf()。  
+此外，我們可以使用ggmap包括背景圖。
+
+The get_map() function downloads the map for a given place.  
+Alternatively, it can be an address, latitude/longitude or a bounding box.  
+The maptype argument allows us to indicate the style or type of map.  
+You can find more details in the help of the ?get_map function.
+ggmap::get_map()函數下載給定位置的地圖。  
+或者，它可以是地址，緯度/經度或邊界框。  
+maptype參數允許我們指示地圖的樣式或類型。  
+您可以在?get_map函數的幫助下找到更多詳細信息。
+
+```{r}
+# Get bounding box for a given place name
+getbb("Madrid")
+```
+
+```{r}
+# our background map
+mad_map <- get_map(getbb("Madrid"), maptype = "toner-background", source = "stamen")
+mad_map %>% ggmap()
+```
+
+```{r}
+cinema$osm_points[, "geometry"] %>% head
+cinema$osm_points[, "geometry"] %>% str
+```
+
+When we build a graph with ggplot we usually start with ggplot().  
+In this case, we start with ggmap() that includes the object with our background map.  
+
+Then we add with geom_sf() the points of the cinemas in Madrid.  
+It is important to indicate with the argument **inherit.aes = FALSE** that it has to use the aesthetic mappings of the spatial object osm_points.  
+In addition, we change the color, fill, transparency(alpha, 透明度), type and size of the circles.
+
+- ggplot2::geom_sf()
+
+```{r}
+# final map
+ggmap(mad_map)+
+  geom_sf(data = cinema$osm_points,
+          inherit.aes = FALSE,
+          colour = "#238443",
+          fill = "#004529",
+          alpha = .5,
+          size = 4,
+          shape = 21)+
+  labs(x = "", y = "")
+```
+
+## The second query: Where can we find Mercadona(梅卡多納) supermarkets?
+
+Instead of obtaining a bounding box with the function getbb() we can build our own box.  
+To do this, we create a vector of four elements, the order has to be West/South/East/North.  
+不用使用函數getbb()獲取邊界框，我們可以構建自己的框。   為此，我們創建了一個包含四個元素的向量，其順序必須為 西/南/東/北。
+
+In the query we use two features:  
+name and shop to filter supermarkets that are of this particular brand.  
+在查詢中，我們使用兩個功能:  
+名稱和商店以過濾具有該特定品牌的超市。 
+
+Depending on the area or volume of the query, it is necessary to extend the waiting time.  
+By default, the limit is set at 25 seconds (timeout).
+根據查詢的區域或數量，有必要延長等待時間。  
+默認情況下，該限制設置為25秒(超時)。
+
+```{r}
+# bounding box for the Iberian Peninsula
+m <- c(-10, 30, 5, 46)
+
+# building the query
+q <- m %>% 
+  opq(timeout = 25*100) %>%
+  add_osm_feature("name", "Mercadona") %>%
+  add_osm_feature("shop", "supermarket")
+
+# query
+mercadona <- osmdata_sf(q)
+
+# final map
+# 點很多，要繪製一下
+map1 <- ggplot(data = mercadona$osm_points)
+map2 <- map1 +
+  geom_sf(colour = "#08519c",
+          fill = "#08306b",
+          alpha = .5,
+          size = 1,
+          shape = 21)
+map3 <- map2 + theme_void()
+
+# ---
+map1
+map2
+map3
+```
+
+The map, we create in this case, consists only of the supermarket points.  
+Therefore, we use the usual grammar by adding the geometry geom_sf().  
+The theme_void() function removes everything except for the points.
+
+在這種情況下，我們創建的地圖僅包含超市點。  
+因此，我們通過添加幾何geom_sf()使用常規語法。  
+theme_void()函數會刪除除點以外的所有內容。
+
+theme_void()，有黑框線，不知道原因。
+
+---
+
+# END
+
