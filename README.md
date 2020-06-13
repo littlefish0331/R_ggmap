@@ -1,6 +1,8 @@
 # README
 
-最後更新時間: 2020-05-22。  
+最後更新時間: 2020-06-13  
+移到 Github Repository: R_package_learning_note
+
 不建立 github project，因為我希望未來比較多學習的是互動的網頁。
 
 學習 R package: ggmap 的操作。  
